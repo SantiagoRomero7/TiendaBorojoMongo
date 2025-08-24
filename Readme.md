@@ -202,16 +202,348 @@ Cada bloque incluye la explicación del objetivo, su importancia en un entorno r
 - Índice en `clientes.email`.  
 - Verificación con `explain("executionStats")`.  
 - Objetivo: demostrar cómo los índices mejoran la velocidad de búsqueda y reducen el consumo de recursos.
+---
+## 🧪 Explicacion
+
+### 🔹 `insercion.js` — Actualizaciones  
+```javascript
+// 1. Insertar un nuevo producto
+db.productos.insertOne({
+    nombre: "Chocolatina de borojó",
+    categoria: "Snack",
+    precio: 4000,
+    stock: 35,
+    tags: ["dulce", "energía"]
+});
+
+// 2. Insertar un nuevo cliente
+db.clientes.insertOne({
+    nombre: "Mario Mendoza",
+    email: "mario@email.com",
+    compras: [],
+    preferencias: ["energético", "natural"]
+});
+
+```
+**Explicación:**  
+- Se agrega un producto nuevo al catálogo con información detallada.
+- Se registra un cliente con sus datos de contacto y preferencias iniciales. 
+---
+
+### 🔹 `lectura.js` — Consultas básicas  
+```javascript
+// 1. Productos con stock > 20
+db.productos.find({ stock: { $gt: 20 } });
+
+// 2. Clientes sin compras
+db.clientes.find({ compras: { $size: 0 } });
+```
+**Explicación:**  
+- Recupera los productos con más de 20 unidades disponibles (`$gt`).  
+- Lista clientes que no han realizado compras (`$size: 0`).  
 
 ---
 
-## 🧪 Datos de ejemplo
+### 🔹 `actualizacion.js` — Actualizaciones  
+```javascript
+// 1. Aumentar en 10 el stock del "Borojó deshidratado"
+db.productos.updateOne(
+  { nombre: "Borojó deshidratado" },
+  { $inc: { stock: 10 } }
+);
 
-Los archivos JSON en `dataset/` incluyen información ficticia de productos, clientes, proveedores y transacciones. Su propósito es reproducir de manera realista el flujo de datos de la tienda, facilitando la experimentación con consultas y pruebas de rendimiento.
+// 2. Añadir tag "bajo azúcar" a todas las bebidas
+db.productos.updateMany(
+  { categoria: "Bebida" },
+  { $addToSet: { tags: "bajo azúcar" } }
+);
+```
+**Explicación:**  
+- Usa `$inc` para incrementar el **stock** de un producto específico de forma **atómica**.  
+- Emplea `$addToSet` para **agregar el tag** sin duplicarlo en todos los productos de la categoría **Bebida**.  
 
 ---
 
-## 📷 Evidencias (capturas)
+### 🔹 `eliminacion.js` — Eliminaciones  
+```javascript
+// 1. Eliminar cliente con correo específico
+db.clientes.deleteOne({ email: "juan@email.com" });
+
+// 2. Eliminar productos con stock < 5
+db.productos.deleteMany({ stock: { $lt: 5 } });
+```
+**Explicación:**  
+- `deleteOne` elimina un cliente puntual.  
+- `deleteMany` limpia productos con poco inventario.  
+
+---
+### 🔹 regex.js — Consultas con expresiones regulares
+```javascript
+// 1. Productos cuyo nombre empiece por "Boro"
+db.productos.find({ nombre: { $regex: /^Boro/ } });
+
+// 2. Productos cuyo nombre contenga la palabra "con"
+db.productos.find({ nombre: { $regex: "con", $options: "i" } });
+
+// 3. Clientes cuyo nombre tenga la letra "z" (insensible a mayúsculas/minúsculas)
+db.clientes.find({ nombre: { $regex: /z/i } });
+
+```
+**Explicación:**  
+- Filtra productos cuyo nombre empieza con la palabra "Boro".
+- Busca productos que incluyan "con" en cualquier parte del nombre (sin importar mayúsculas o minúsculas). 
+- Encuentra clientes con nombres que contengan la letra "z".
+---
+### 🔹 `arrays.js` — Consultas sobre arreglos  
+```javascript
+// 1. Clientes con "natural" en preferencias
+db.clientes.find({ preferencias: "natural" });
+
+// 2. Productos con "natural" y "orgánico"
+db.productos.find({ tags: { $all: ["natural", "orgánico"] } });
+
+// 3. Productos con más de un tag
+db.productos.find({ "tags.1": { $exists: true } });
+```
+**Explicación:**  
+- Consulta clientes con preferencias específicas.  
+- Busca productos que tengan simultáneamente `"natural"` y `"orgánico"`.  
+- Valida productos con múltiples etiquetas (`tags`).  
+
+---
+
+### 🔹 `agregation.js` — Aggregation Framework  
+```javascript
+// 1. Productos más vendidos
+db.ventas.aggregate([
+  { $unwind: "$productos" },
+  { $group: { _id: "$productos.productoId", totalVendido: { $sum: "$productos.cantidad" } } },
+  { $sort: { totalVendido: -1 } }
+]);
+```
+**Explicación:**  
+- Descompone (`$unwind`) los productos de cada venta.  
+- Agrupa por producto y suma cantidades.  
+- Ordena para mostrar los más vendidos.  
+
+```javascript
+// 2. Agrupar clientes por cantidad de compras realizadas
+db.clientes.aggregate([
+  { $project: { nombre: 1, totalCompras: { $size: "$compras" } } },
+  { $group: { _id: "$totalCompras", clientes: { $push: "$nombre" } } },
+  { $sort: { _id: 1 } }
+]);
+```
+**Explicación:**  
+- Calcula compras de cada cliente.  
+- Agrupa clientes por cantidad de compras.  
+
+```javascript
+// 3. Total de ventas por mes
+db.ventas.aggregate([
+  { $group: {
+      _id: { anio: { $year: { $toDate: "$fecha" } }, mes: { $month: { $toDate: "$fecha" } } },
+      totalVentas: { $sum: "$total" }
+    }
+  },
+  { $sort: { "_id.anio": 1, "_id.mes": 1 } }
+]);
+```
+**Explicación:**  
+- Agrupa ventas por año y mes.  
+- Calcula el total de ventas mensuales.  
+
+```javascript
+// 4. Promedio de precios por categoría
+db.productos.aggregate([
+  { $group: { _id: "$categoria", promedioPrecio: { $avg: "$precio" } } },
+  { $sort: { promedioPrecio: -1 } }
+]);
+```
+**Explicación:**  
+- Calcula promedios de precio por categoría.  
+
+```javascript
+// 5. Top 3 productos con mayor stock
+db.productos.aggregate([
+  { $sort: { stock: -1 } },
+  { $limit: 3 },
+  { $project: { _id: 0, nombre: 1, stock: 1 } }
+]);
+```
+**Explicación:**  
+- Muestra los tres productos con más unidades disponibles.  
+
+---
+
+### 🔹 `indexacion.js` — Índices  
+```javascript
+// Índice simple en nombre
+db.productos.createIndex({ nombre: 1 });
+
+// Índice compuesto categoria + precio
+db.productos.createIndex({ categoria: 1, precio: 1 });
+
+// Índice único en email
+db.clientes.createIndex({ email: 1 }, { unique: true });
+
+// Comprobar uso de índice
+db.productos.find({ nombre: "Borojó fresco" }).explain("executionStats");
+```
+**Explicación:**  
+- Mejora consultas frecuentes con índices.  
+- Usa `explain("executionStats")` para verificar el plan de ejecución.  
+
+---
+
+### 🔹 `system.js` — Funciones almacenadas  
+```javascript
+// Calcular descuento
+db.system.js.save({
+  _id: "calcularDescuento",
+  value: function(precio, porcentaje) {
+    return precio - (precio * porcentaje / 100);
+  }
+});
+```
+**Explicación:** Calcula un precio final aplicando un descuento.  
+
+```javascript
+// Cliente activo
+db.system.js.save({
+  _id: "clienteActivo",
+  value: function(idCliente) {
+    const cliente = db.clientes.findOne({ _id: idCliente });
+    return cliente.compras.length > 3;
+  }
+});
+```
+**Explicación:** Determina si un cliente es “activo” (más de 3 compras).  
+
+```javascript
+// Verificar stock
+db.system.js.save({
+  _id: "verificarStock",
+  value: function(productoId, cantidadDeseada) {
+    const producto = db.productos.findOne({ _id: productoId });
+    return producto.stock >= cantidadDeseada;
+  }
+});
+```
+**Explicación:** Comprueba si hay suficiente stock disponible.  
+
+---
+
+### 🔹 `transacciones.js` — Transacciones (venta, entrada, devolución)  
+```javascript
+// === TRANSACCIONES EN MongoDB ===
+// Base de datos: tiendaBorojo
+
+// -------------------------------------------
+// 1. SIMULAR UNA VENTA
+// -------------------------------------------
+const session1 = db.getMongo().startSession();
+session1.startTransaction();
+
+try {
+  const tienda = session1.getDatabase("tiendaBorojo");
+
+  // a) Descontar stock
+  tienda.productos.updateOne(
+    { _id: 1 },
+    { $inc: { stock: -1 } }
+  );
+
+  // b) Insertar venta con _id controlado
+  tienda.ventas.insertOne({
+    _id: 101,
+    clienteId: 1,
+    productos: [{ productoId: 1, cantidad: 1 }],
+    fecha: new Date(),
+    total: 5000
+  });
+
+  session1.commitTransaction();
+  print("✅ Venta registrada");
+} catch (e) {
+  print("❌ Error en la venta:", e);
+  session1.abortTransaction();
+}
+session1.endSession();
+
+
+
+// -------------------------------------------
+// 2. SIMULAR LA ENTRADA DE NUEVO INVENTARIO
+// -------------------------------------------
+const session2 = db.getMongo().startSession();
+session2.startTransaction();
+
+try {
+  const tienda = session2.getDatabase("tiendaBorojo");
+
+  // a) Registrar entrada
+  tienda.inventario.insertOne({
+    productoId: 1,
+    cantidad: 10,
+    fecha: new Date(),
+    proveedor: "ProveedorX"
+  });
+
+  // b) Aumentar stock
+  tienda.productos.updateOne(
+    { _id: 1 },
+    { $inc: { stock: 10 } }
+  );
+
+  session2.commitTransaction();
+  print("✅ Entrada de inventario registrada");
+} catch (e) {
+  print("❌ Error en entrada inventario:", e);
+  session2.abortTransaction();
+}
+session2.endSession();
+
+
+
+// -------------------------------------------
+// 3. SIMULAR UNA DEVOLUCIÓN
+// -------------------------------------------
+const session3 = db.getMongo().startSession();
+session3.startTransaction();
+
+try {
+  const tienda = session3.getDatabase("tiendaBorojo");
+
+  // a) Aumentar stock
+  tienda.productos.updateOne(
+    { _id: 1 },
+    { $inc: { stock: 1 } }
+  );
+
+  // b) Eliminar la venta (usamos la que creamos con _id = 101)
+  tienda.ventas.deleteOne({ _id: 101 });
+
+  session3.commitTransaction();
+  print("✅ Devolución realizada");
+} catch (e) {
+  print("❌ Error en la devolución:", e);
+  session3.abortTransaction();
+}
+session3.endSession();
+```
+**Explicación:**  
+- Se crean **sesiones** (`startSession`) y se inicia una **transacción** (`startTransaction`).  
+- **Venta**: descuenta stock e inserta un documento en `ventas`.  
+- **Entrada de inventario**: registra entrada en `inventario` y aumenta stock.  
+- **Devolución**: repone stock y elimina la venta creada.  
+- En cada caso, se usa `commitTransaction()` para confirmar o `abortTransaction()` ante errores.  
+- **Requiere Replica Set** para funcionar.  
+
+
+---
+
+## 📷 Evidencias (consultas)
 
 ### Lectura
 
